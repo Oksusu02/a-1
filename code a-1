@@ -1,0 +1,440 @@
+# import library
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib import font_manager, rc
+font_name = font_manager.FontProperties(fname="c:/Windows/Fonts/malgun.ttf").get_name()
+rc('font', family=font_name)
+import folium
+from geopy.geocoders import Nominatim
+from folium import IFrame
+from geopy.distance import great_circle
+import requests
+import json
+
+
+
+################################################################################################################
+
+
+
+path = 'file_path/file_name.csv'
+traffic_total= pd.read_csv(path, encoding='CP949')
+# traffic_young= pd.read_csv('C:/python/세종시_어린이교통사고_2023-01-06.csv',encoding='CP949')
+# traffic_old= pd.read_excel(r"C:\python\복사본 2022년 세종특별자치시 노인 교통사고 데이터.xlsx")
+
+traffic_total = traffic_total.dropna(subset=['피해운전자 연령'])
+traffic_total['피해운전자 연령'] = traffic_total['피해운전자 연령'].apply(lambda x: x.split('세')[0])
+traffic_total['피해운전자 연령'] = traffic_total['피해운전자 연령'].astype(int)
+
+# traffic_total = traffic_total.dropna(subset=['가해운전자 연령'])
+# traffic_total = traffic_total[traffic_total['가해운전자 연령'] != '미분류']
+# traffic_total['가해운전자 연령'] = traffic_total['가해운전자 연령'].apply(lambda x: x.split('세')[0])
+# traffic_total['가해운전자 연령'] = traffic_total['가해운전자 연령'].astype(int)
+
+# traffic_young = traffic_young.dropna(subset=['피해운전자 연령'])
+# traffic_young['피해운전자 연령'] = traffic_young['피해운전자 연령'].apply(lambda x: x.split('세')[0])
+# traffic_young['피해운전자 연령'] = traffic_young['피해운전자 연령'].astype(int)
+
+# traffic_old = traffic_old.dropna(subset=['피해운전자 연령'])
+# traffic_old['피해운전자 연령'] = traffic_old['피해운전자 연령'].apply(lambda x: x.split('세')[0])
+# traffic_old['피해운전자 연령'] = traffic_old['피해운전자 연령'].astype(int)
+
+
+
+################################################################################################################
+
+
+
+def plot_traffic_data(data):
+    # 특정 열만 선택 ('피해운전자_연령', '피해운전자_상해정도')
+    selected_columns = ['피해운전자 연령', '피해운전자 상해정도']
+    df_selected = data[selected_columns]
+
+    # 피해운전자 연령을 오름차순으로 정렬
+    df_selected_sorted = df_selected.sort_values(by='피해운전자 연령')
+
+    # 피해운전자 연령에 대한 히스토그램과 KDE
+    plt.figure(figsize=(30, 15))
+    sns.histplot(df_selected_sorted['피해운전자 연령'], kde=True, bins=30, color='skyblue')
+    plt.title('피해자 연령 분포', fontsize = 30)
+    plt.xlabel('피해자 연령', fontsize = 24)
+    plt.ylabel('빈도', fontsize = 24)
+
+    # x축 label을 45도로 회전
+    plt.xticks(rotation=45)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    # plt.legend(fontsize=14)
+    plt.show()
+
+    # 피해운전자 연령과 상해정도에 대한 countplot
+    plt.figure(figsize=(30, 15))
+    ax = sns.countplot(x='피해운전자 연령', hue='피해운전자 상해정도', data=df_selected_sorted, palette='viridis')
+    plt.title('피해자 연령과 상해정도의 관계', fontsize=30)
+    plt.xlabel('피해자 연령', fontsize=24)
+    plt.ylabel('빈도', fontsize=24)
+    plt.xticks(rotation=45, fontsize=14)
+    plt.legend(fontsize=14, title='피해운전자 상해정도')
+
+    plt.show()
+
+    # 피해운전자 연령과 상해정도에 대한 가중치 적용 선 그래프
+    plt.figure(figsize=(30, 15))
+    df_weighted_counts = df_selected_sorted.groupby(['피해운전자 연령', '피해운전자 상해정도']).size().unstack(fill_value=0)
+    df_weighted_counts['가중치'] = df_weighted_counts.apply(lambda row: row['사망'] * 20 + row['중상'] * 10 + row['경상'] * 5 - row['상해없음'] * 1, axis=1)
+    sns.lineplot(x='피해운전자 연령', y='가중치', data=df_weighted_counts, marker='o', color='orange')
+    plt.title('피해자 연령과 상해정도의 가중치 적용 선 그래프', fontsize=30)
+    plt.xlabel('피해자 연령', fontsize=24)
+    plt.ylabel('가중치', fontsize=24)
+    plt.xticks(rotation=45, fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # 선 위에 가중치 값 표시
+    for age, weight in zip(df_weighted_counts.index, df_weighted_counts['가중치']):
+        plt.text(age, weight + 0.2, f"{weight}", ha='center', fontsize=12)
+
+    plt.show()
+
+plot_traffic_data(traffic_total)
+plot_traffic_data(traffic_total[traffic_total['피해운전자 차종'] == '보행자'])
+
+
+
+################################################################################################################
+
+
+
+def plot_traffic_data2(data):
+    selected_columns = ['가해운전자 연령', '가해운전자 상해정도']
+    df_selected = data[selected_columns]
+
+    
+    df_selected_sorted = df_selected.sort_values(by='가해운전자 연령')
+
+    # 가해운전자 연령에 대한 히스토그램과 KDE
+    plt.figure(figsize=(30, 15))
+    sns.histplot(df_selected_sorted['가해운전자 연령'], kde=True, bins=30, color='skyblue')
+    plt.title('가해자 연령 분포', fontsize = 30)
+    plt.xlabel('가해자 연령', fontsize = 24)
+    plt.ylabel('빈도', fontsize = 24)
+
+    # x축 label을 45도로 회전
+    plt.xticks(rotation=45)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    # plt.legend(fontsize=14)
+    plt.show()
+
+    # 가해운전자 연령과 상해정도에 대한 countplot
+    plt.figure(figsize=(30, 15))
+    ax = sns.countplot(x='가해운전자 연령', hue='가해운전자 상해정도', data=df_selected_sorted, palette='viridis')
+    plt.title('가해자 연령과 상해정도의 관계', fontsize=30)
+    plt.xlabel('가해자 연령', fontsize=24)
+    plt.ylabel('빈도', fontsize=24)
+    plt.xticks(rotation=45, fontsize=14)
+    plt.legend(fontsize=14, title='가해운전자 상해정도')
+
+    plt.show()
+
+    # 가해운전자 연령과 상해정도에 대한 가중치 적용 선 그래프
+    plt.figure(figsize=(30, 15))
+    df_weighted_counts = df_selected_sorted.groupby(['가해운전자 연령', '가해운전자 상해정도']).size().unstack(fill_value=0)
+    df_weighted_counts['가중치'] = df_weighted_counts.apply(lambda row: row['중상'] * 10 + row['경상'] * 5 - row['상해없음'] * 1, axis=1)
+    sns.lineplot(x='가해운전자 연령', y='가중치', data=df_weighted_counts, marker='o', color='orange')
+    plt.title('가해자 연령과 상해정도의 가중치 적용 선 그래프', fontsize=30)
+    plt.xlabel('가해자 연령', fontsize=24)
+    plt.ylabel('가중치', fontsize=24)
+    plt.xticks(rotation=45, fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # 선 위에 가중치 값 표시
+    for age, weight in zip(df_weighted_counts.index, df_weighted_counts['가중치']):
+        plt.text(age, weight + 0.2, f"{weight}", ha='center', fontsize=12)
+
+    plt.show()
+
+plot_traffic_data2(traffic_total)
+plot_traffic_data2(traffic_total[traffic_total['피해운전자 차종'] == '보행자'])
+
+
+
+################################################################################################################
+
+
+# 세종시 노인보호구역 위치 json으로 return
+url = 'http://apis.data.go.kr/5690000/sjProZone/sj_00000220'
+params ={'serviceKey' : 'aAAPMnfJk+HF+c+7IzwcxYo4dIk3unacvIjqthdGXutWJ1SA/0pdvahyvNrGE2z0EOqI+hIkiArfZWOhGqkKcg==', 
+         'pageIndex' : '1', 'pageUnit' : '20', 'dataTy' : 'xml', 'searchCondition' : 'cmptnc_Polcsttn_Nm', 'searchKeyword' : '세종경찰서' }
+
+response = requests.get(url, params=params)
+#print(response.content)
+
+path2 = 'file_path/file_name.xlsx'
+silver_zone_sejong = pd.read_excel(path2)
+
+# XLS 파일 경로 설정
+xls_file_path = 'file_path/file_name.xls'
+
+# XLS 파일을 CSV 파일로 변환
+csv_file_path = 'file_path/file_name.csv'
+df = pd.read_excel(xls_file_path)
+df.to_csv(csv_file_path, index=False, encoding='utf-8')
+
+print(f'Data has been converted from {xls_file_path} to {csv_file_path}.')
+
+# CSV 파일을 다시 불러오기
+df = pd.read_csv(csv_file_path, header=1)
+
+
+
+################################################################################################################
+
+
+
+# 좌표변환 함수
+
+def get_lat(address):
+  try:
+      url = 'https://dapi.kakao.com/v2/local/search/address.json?query=' + address
+      # 'KaKaoAK '는 그대로 두시고 개인키만 지우고 입력해 주세요.
+      # ex) KakaoAK 6af8d4826f0e56c54bc794fa8a294
+      headers = {"Authorization": "KakaoAK 6e2764843a763de5e1b1c1543ba3de80"}
+      api_json = json.loads(str(requests.get(url,headers=headers).text))
+      address = api_json['documents'][0]['address']
+      crd = {"lat": str(address['y']), "lng": str(address['x'])}
+      address_name = address['address_name']
+  except IndexError:
+      return 0
+
+  return crd['lat']
+
+
+def get_lng(address):
+  try:
+      url = 'https://dapi.kakao.com/v2/local/search/address.json?query=' + address
+      # 'KaKaoAK '는 그대로 두시고 개인키만 지우고 입력해 주세요.
+      # ex) KakaoAK 6af8d4826f0e56c54bc794fa8a294
+      headers = {"Authorization": "KakaoAK 6e2764843a763de5e1b1c1543ba3de80"}
+      api_json = json.loads(str(requests.get(url,headers=headers).text))
+      address = api_json['documents'][0]['address']
+      crd = {"lat": str(address['y']), "lng": str(address['x'])}
+      address_name = address['address_name']
+  except IndexError:
+      return 0
+  return crd['lng']
+
+df['위도'] = df['시설소재지 주소'].apply(get_lat)
+df['경도'] = df['시설소재지 주소'].apply(get_lng)
+df = df[df['위도'] != 0]
+df = df[df['경도'] != 0]
+df['위도'] = df['위도'].astype(float)
+df['경도'] = df['경도'].astype(float)
+
+
+
+################################################################################################################
+
+
+
+# 사용자 에이전트 설정
+geolocator = Nominatim(user_agent="my_geocoder")
+
+# 도로명 주소 가져오는 함수
+def get_address(location):
+    location_str = f"{location[0]}, {location[1]}"
+    location_info = geolocator.reverse(location_str)
+    return location_info.address if location_info else "주소를 찾을 수 없습니다."
+
+def is_in_urban_area(location, existing_markers, threshold_distance=1500):
+    """
+    주어진 위치가 도심에 속하는지 여부를 판단하는 함수.
+
+    Parameters:
+        - location (tuple): 현재 위치의 좌표 (latitude, longitude).
+        - existing_markers (list): 이미 존재하는 마커들의 좌표 리스트.
+        - threshold_distance (float): 도심으로 간주할 최대 거리 (미터).
+
+    Returns:
+        - bool: 도심에 속하면 True, 아니면 False.
+    """
+    if not existing_markers:
+        # 마커가 없는 경우에는 도심으로 간주하지 않음
+        return False
+
+    # 초기 최소 거리를 무한대로 설정
+    min_distance = float('inf')
+
+    # 모든 기존 마커에 대해 거리 계산
+    for existing_marker in existing_markers:
+        distance = great_circle(location, existing_marker).meters
+        min_distance = min(min_distance, distance)
+
+    # 최소 거리가 threshold_distance 이내인지 여부 반환
+    return min_distance < threshold_distance
+
+# 카카오맵에서 위성 이미지 URL 가져오는 함수
+def get_kakao_static_map_url(location):
+    kakao_api_key = 'YOUR_KAKAO_API_KEY'
+    base_url = 'https://dapi.kakao.com/v2/local/geo/coord2address.json'
+    headers = {'Authorization': f'KakaoAK {kakao_api_key}'}
+    params = {'x': location[1], 'y': location[0], 'input_coord': 'WGS84'}
+
+    response = requests.get(base_url, headers=headers, params=params)
+    result = response.json()
+
+    address = result['documents'][0]['address']['address_name']
+    
+    # staticmap API를 사용하여 위성 이미지 URL 가져오기
+    static_map_url = f'https://dapi.kakao.com/v2/local/geo/transcoord.json?x={location[1]}&y={location[0]}'
+    static_map_url += f'&output_coord=TM&input_coord=WGS84&appkey={kakao_api_key}'
+    static_map_url += f'&thumb=http://map2.daum.net/map/staticimg?width=600&height=400&center={location[1]},{location[0]}&level=3'
+
+    # 팝업 컨텐츠에 이미지 태그를 포함하여 위성 이미지를 표시
+    popup_content = f"<strong>도로명 주소:</strong> {get_address(location)}<br/><img src='{static_map_url}' alt='위성 이미지' width='300'>"
+
+    return popup_content
+
+# 카카오맵에서 장소 사진 URL 가져오는 함수
+def get_kakao_place_photos(location, radius=500, size=5):
+    kakao_api_key = 'your_kakao_api_key'
+    base_url = 'https://dapi.kakao.com/v2/local/search/category.json'
+    headers = {'Authorization': f'KakaoAK {kakao_api_key}'}
+    params = {
+        'category_group_code': 'PO3',
+        'x': location[1],
+        'y': location[0],
+        'radius': radius,
+        'size': size
+    }
+
+    response = requests.get(base_url, headers=headers, params=params)
+    result = response.json()
+
+    photos = []
+
+    for place in result.get('documents', []):
+        for photo in place.get('place.photos', []):
+            photos.append(photo['url'])
+
+    return photos
+
+
+
+################################################################################################################
+
+
+
+# 첫 번째 데이터프레임과 두 번째 데이터프레임의 위치 정보를 모두 담는 리스트
+all_locations = []
+
+# 첫 번째 데이터프레임의 위치를 리스트에 추가
+for index, row in df.iterrows():
+    location = [row['위도'], row['경도']]
+    all_locations.append(location)
+
+# Folium 지도 생성
+mymap = folium.Map(location=[df['위도'].mean(), df['경도'].mean()], zoom_start=12)
+
+existing_markers = []
+
+# 첫 번째 데이터프레임의 위치에 Marker로 표시
+for location in all_locations:
+    is_urban_area = is_urban(location, existing_markers)
+    
+    icon_color = 'red' if is_urban_area else 'green'
+
+    # 마우스 커서를 가져갔을 때 도로명 주소와 카카오맵에서 가져온 위성 이미지 표시
+    folium.Marker(
+        location=location,
+        radius=200,
+        icon=folium.Icon(color=icon_color),
+        popup=folium.Popup(f"{get_kakao_static_map_url(location)}", max_width=400),
+        tooltip=get_address(location)
+    ).add_to(mymap)
+
+    existing_markers.append(location)
+
+# 두 번째 데이터프레임의 위치에 Circle로 표시
+for index, row in silver_zone_sejong.iterrows():
+    location = [row['위도'], row['경도']]
+
+    # CircleMarker 반경 안에 있는 위치는 무조건 도심으로 분류
+    is_urban_area = True
+    
+    icon_color = 'red'
+
+    # 마우스 커서를 가져갔을 때 도로명 주소와 카카오맵에서 가져온 위성 이미지 표시
+    folium.Circle(
+        location=location,
+        radius=200,
+        color=icon_color,
+        fill=True,
+        fill_color=icon_color,
+        popup=folium.Popup(f"{get_kakao_static_map_url(location)}", max_width=400),
+        tooltip=get_address(location)
+    ).add_to(mymap)
+
+    # 동시에 해당 위치에 Marker로 표시
+    folium.Marker(
+        location=location,
+        popup=folium.Popup(f"{get_kakao_static_map_url(location)}", max_width=400),
+        icon=folium.Icon(color='purple'),
+        tooltip=get_address(location)
+    ).add_to(mymap)
+
+# HTML 파일로 저장
+mymap.save('map.html')
+
+
+
+################################################################################################################
+
+
+
+# 전체데이터일 때
+traffic = traffic_total
+traffic['시군구'] = traffic['시군구'].apply(lambda x: x[-4:])
+traffic = traffic[traffic['피해운전자 차종'] == '보행자']
+
+# 빈도 계산
+frequency = traffic['시군구'].value_counts()
+
+# 그래프 그리기
+plt.figure(figsize=(20, 12))  # 그래프 크기 설정
+frequency.plot(kind='bar', color='skyblue', edgecolor='black')  # 막대 그래프 그리기
+
+# 축 및 제목 설정
+plt.xlabel('시군구', fontsize=16)
+plt.ylabel('Frequency', fontsize=16)
+plt.title('시군구 Frequency', fontsize=20)
+
+# 폰트 크기 설정
+plt.xticks(rotation=0, fontsize=14)
+plt.yticks(fontsize=14)
+
+# 그래프 표시
+plt.show()
+
+
+# 65세 이상일 때
+traffic_old = traffic[traffic['피해운전자 연령'] >= 65]
+# 빈도 계산
+frequency = traffic_old['시군구'].value_counts()
+
+# 그래프 그리기
+plt.figure(figsize=(20, 12))  # 그래프 크기 설정
+frequency.plot(kind='bar', color='skyblue', edgecolor='black')  # 막대 그래프 그리기
+
+# 축 및 제목 설정
+plt.xlabel('시군구', fontsize=16)
+plt.ylabel('Frequency', fontsize=16)
+plt.title('시군구 Frequency(65세 이상)', fontsize=20)
+
+# 폰트 크기 설정
+plt.xticks(rotation=0, fontsize=14)
+plt.yticks(fontsize=14)
+
+# 그래프 표시
+plt.show()
+plt.show()
