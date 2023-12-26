@@ -437,4 +437,3 @@ plt.yticks(fontsize=14)
 
 # 그래프 표시
 plt.show()
-plt.show()
