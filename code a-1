@@ -400,17 +400,23 @@ traffic = traffic[traffic['피해운전자 차종'] == '보행자']
 # 빈도 계산
 frequency = traffic['시군구'].value_counts()
 
-# 그래프 그리기
-plt.figure(figsize=(20, 12))  # 그래프 크기 설정
-frequency.plot(kind='bar', color='skyblue', edgecolor='black')  # 막대 그래프 그리기
+# 빈도를 오름차순으로 정렬
+sorted_frequency = frequency.sort_values()
+
+# 상위 5개의 시군구 선택
+top5_frequency = sorted_frequency.tail(5)
+
+# 그래프 그리기 (세로 막대그래프)
+plt.figure(figsize=(8, 6))  # 그래프 크기 설정
+top5_frequency.plot(kind='barh', color='skyblue', edgecolor='black')  # 세로 막대 그래프 그리기
 
 # 축 및 제목 설정
-plt.xlabel('시군구', fontsize=16)
-plt.ylabel('Frequency', fontsize=16)
-plt.title('시군구 Frequency', fontsize=20)
+plt.xlabel('사고 빈도', fontsize=16)
+plt.ylabel('시군구', fontsize=16)
+plt.title('상위 5개 시군구의 사고 빈도', fontsize=20)
 
 # 폰트 크기 설정
-plt.xticks(rotation=0, fontsize=14)
+plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
 
 # 그래프 표시
